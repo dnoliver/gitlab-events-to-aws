@@ -1,11 +1,18 @@
 import json
+import logging
 from datetime import datetime
 
+# Configure logger
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
 def handler(event, context):
+    # Log the start of the Lambda function
+    logger.info("Lambda function started")
     
     # Log the event
-    print(f"Received event: {json.dumps(event, indent=2)}")
-    
+    logger.info(f"Received event: \n{json.dumps(event, indent=2)}")
+
     # Get the HTTP method from the event
     http_method = event['httpMethod']
     

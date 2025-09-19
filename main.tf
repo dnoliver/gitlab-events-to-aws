@@ -102,6 +102,13 @@ resource "null_resource" "build_push_docker_images" {
   }
 
   triggers = {
+    # Monitor Python files and Dockerfile
+    app_files_hash = md5(join("", [
+      for f in fileset("${path.module}/app", "{*.py,Dockerfile,requirements.txt}") :
+      filemd5("${path.module}/app/${f}")
+    ]))
+
+    # Monitor ECR URL for changes
     ecr_url = aws_ecr_repository.lambda_ecr_repo.repository_url
   }
 }
@@ -137,13 +144,20 @@ resource "time_sleep" "wait_for_deployment" {
   create_duration = "60s"                                    # Set delay duration
 }
 
+# Get the image digest from ECR
+data "aws_ecr_image" "lambda_image" {
+  repository_name = aws_ecr_repository.lambda_ecr_repo.name
+  image_tag       = "latest"
+  depends_on      = [null_resource.build_push_docker_images]
+}
+
 # Create the Lambda function using Docker image
 resource "aws_lambda_function" "crud_lambda" {
   function_name = "crud_operations"
   role          = aws_iam_role.lambda_role.arn
 
   package_type = "Image"
-  image_uri    = "${aws_ecr_repository.lambda_ecr_repo.repository_url}:latest"
+  image_uri    = "${aws_ecr_repository.lambda_ecr_repo.repository_url}@${data.aws_ecr_image.lambda_image.image_digest}"
 
   # Set Lambda timeout and memory size
   memory_size = 128
