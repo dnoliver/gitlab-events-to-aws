@@ -170,6 +170,41 @@ resource "aws_api_gateway_rest_api" "crud_api" {
   description = "CRUD API Gateway"
 }
 
+# Create API Key
+resource "aws_api_gateway_api_key" "api_key" {
+  name        = "my-api-key"
+  description = "API Key for CRUD operations"
+  enabled     = true
+}
+
+# Create Usage Plan
+resource "aws_api_gateway_usage_plan" "usage_plan" {
+  name        = "my-usage-plan"
+  description = "Usage plan for API key"
+
+  api_stages {
+    api_id = aws_api_gateway_rest_api.crud_api.id
+    stage  = "prod"
+  }
+
+  quota_settings {
+    limit  = 1000
+    period = "DAY"
+  }
+
+  throttle_settings {
+    rate_limit  = 100
+    burst_limit = 200
+  }
+}
+
+# Link API Key to Usage Plan
+resource "aws_api_gateway_usage_plan_key" "usage_plan_key" {
+  key_id        = aws_api_gateway_api_key.api_key.id
+  key_type      = "API_KEY"
+  usage_plan_id = aws_api_gateway_usage_plan.usage_plan.id
+}
+
 # API Gateway resource
 resource "aws_api_gateway_resource" "items" {
   rest_api_id = aws_api_gateway_rest_api.crud_api.id
@@ -179,34 +214,38 @@ resource "aws_api_gateway_resource" "items" {
 
 # GET method
 resource "aws_api_gateway_method" "get" {
-  rest_api_id   = aws_api_gateway_rest_api.crud_api.id
-  resource_id   = aws_api_gateway_resource.items.id
-  http_method   = "GET"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.crud_api.id
+  resource_id      = aws_api_gateway_resource.items.id
+  http_method      = "GET"
+  authorization    = "NONE"
+  api_key_required = true
 }
 
 # POST method
 resource "aws_api_gateway_method" "post" {
-  rest_api_id   = aws_api_gateway_rest_api.crud_api.id
-  resource_id   = aws_api_gateway_resource.items.id
-  http_method   = "POST"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.crud_api.id
+  resource_id      = aws_api_gateway_resource.items.id
+  http_method      = "POST"
+  authorization    = "NONE"
+  api_key_required = true
 }
 
 # PUT method
 resource "aws_api_gateway_method" "put" {
-  rest_api_id   = aws_api_gateway_rest_api.crud_api.id
-  resource_id   = aws_api_gateway_resource.items.id
-  http_method   = "PUT"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.crud_api.id
+  resource_id      = aws_api_gateway_resource.items.id
+  http_method      = "PUT"
+  authorization    = "NONE"
+  api_key_required = true
 }
 
 # DELETE method
 resource "aws_api_gateway_method" "delete" {
-  rest_api_id   = aws_api_gateway_rest_api.crud_api.id
-  resource_id   = aws_api_gateway_resource.items.id
-  http_method   = "DELETE"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.crud_api.id
+  resource_id      = aws_api_gateway_resource.items.id
+  http_method      = "DELETE"
+  authorization    = "NONE"
+  api_key_required = true
 }
 
 # Lambda integration for GET
@@ -284,4 +323,10 @@ resource "aws_api_gateway_stage" "crud_stage" {
 # Output the API Gateway URL
 output "api_url" {
   value = "${aws_api_gateway_stage.crud_stage.invoke_url}/items"
+}
+
+# Output the API Key
+output "api_key_value" {
+  value     = aws_api_gateway_api_key.api_key.value
+  sensitive = true
 }
