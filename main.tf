@@ -220,16 +220,16 @@ resource "aws_api_gateway_usage_plan_key" "usage_plan_key" {
 }
 
 # API Gateway resource
-resource "aws_api_gateway_resource" "items" {
+resource "aws_api_gateway_resource" "events" {
   rest_api_id = aws_api_gateway_rest_api.crud_api.id
   parent_id   = aws_api_gateway_rest_api.crud_api.root_resource_id
-  path_part   = "items"
+  path_part   = "events"
 }
 
 # POST method
 resource "aws_api_gateway_method" "post" {
   rest_api_id      = aws_api_gateway_rest_api.crud_api.id
-  resource_id      = aws_api_gateway_resource.items.id
+  resource_id      = aws_api_gateway_resource.events.id
   http_method      = "POST"
   authorization    = "NONE"
   api_key_required = true
@@ -238,7 +238,7 @@ resource "aws_api_gateway_method" "post" {
 # Lambda integration for POST
 resource "aws_api_gateway_integration" "lambda_post" {
   rest_api_id = aws_api_gateway_rest_api.crud_api.id
-  resource_id = aws_api_gateway_resource.items.id
+  resource_id = aws_api_gateway_resource.events.id
   http_method = aws_api_gateway_method.post.http_method
 
   integration_http_method = "POST"
@@ -273,7 +273,7 @@ resource "aws_api_gateway_stage" "crud_stage" {
 
 # Output the API Gateway URL
 output "api_url" {
-  value = "${aws_api_gateway_stage.crud_stage.invoke_url}/items"
+  value = "${aws_api_gateway_stage.crud_stage.invoke_url}/events"
 }
 
 # Output the API Key
