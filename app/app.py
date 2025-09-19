@@ -2,6 +2,10 @@ import json
 from datetime import datetime
 
 def handler(event, context):
+    
+    # Log the event
+    print(f"Received event: {json.dumps(event, indent=2)}")
+    
     # Get the HTTP method from the event
     http_method = event['httpMethod']
     
@@ -14,7 +18,7 @@ def handler(event, context):
     }
     
     message = message_map.get(http_method, 'Unsupported HTTP method')
-    
+
     # Return the response
     return {
         'statusCode': 200,
