@@ -89,8 +89,9 @@ EOF
 resource "null_resource" "build_push_docker_images" {
   provisioner "local-exec" {
     command = <<EOT
+      set -e
       # Log in to ECR
-      aws ecr get-login-password --region ${data.aws_region.current.name} \
+      aws ecr get-login-password --region ${data.aws_region.current.name} --profile dnoliver \
       | docker login --username AWS --password-stdin ${aws_ecr_repository.lambda_ecr_repo.repository_url}
       # Build Docker image
       docker buildx build --platform linux/amd64 --provenance=false --tag lambda-docker-demo ./app/.

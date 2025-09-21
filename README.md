@@ -26,13 +26,59 @@ API_URL=$(terraform output -raw api_url)
 API_KEY=$(terraform output -raw api_key_value)
 ```
 
-## Setup GitLab Hooks
+## Test with network request
 
 ```bash
-glab api projects/:id/hooks --method POST \
-  --field url="$API_URL" \
-  --field issues_events=true \
-  --header "x-api-key: $API_KEY"
+curl -X POST "$API_URL" -H "x-api-key: $API_KEY" -d '{"key":"value"}'
 ```
 
-Then trigger an `issue_event` from the GitLab UI and check the output on Cloud Watch
+## Setup GitLab Webhook
+
+```bash
+PROJECT_ID=<PROJECT ID>
+
+glab api \
+  --hostname gitlab.com \
+  projects/$PROJECT_ID/hooks \
+  --method POST \
+  --field url="$API_URL" \
+  --field issues_events=true
+```
+
+## Add Header with API Key to Webhook
+
+```bash
+PROJECT_ID=<PROJECT ID>
+HOOK_ID=<HOOK ID>
+
+glab api \
+  --hostname gitlab.com \
+  projects/$PROJECT_ID/hooks/$HOOK_ID/custom_headers/x-api-key \
+  --method PUT \
+  --field value="$API_KEY"
+```
+
+## Trigger GitLab Webhook
+
+```bash
+PROJECT_ID=<PROJECT ID>
+HOOK_ID=<HOOK ID>
+TRIGGER="issues_events"
+
+glab api \
+  --hostname gitlab.com \
+  projects/$PROJECT_ID/hooks/$HOOK_ID/test/$TRIGGER \
+  --method POST
+```
+
+## Delete GitLab Hook
+
+```BASH
+PROJECT_ID=<SOMETHING>
+HOOK_ID=<HOOK ID>
+
+glab api \
+  --hostname gitlab.com \
+  projects/$PROJECT_ID/hooks/$HOOK_ID \
+  --method DELETE
+```
