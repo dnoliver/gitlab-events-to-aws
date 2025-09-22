@@ -128,10 +128,21 @@ resource "aws_iam_role" "lambda_role" {
   })
 }
 
+# Generate random suffix for secret name
+resource "random_id" "secret_suffix" {
+  byte_length = 4
+}
+
 # Define Secrets Manager
 resource "aws_secretsmanager_secret" "app_secrets" {
-  name        = "my-application-secret"
-  description = "Secret for my application"
+  name                           = "my-application-secret-${random_id.secret_suffix.hex}"
+  description                    = "Secret for my application"
+  force_overwrite_replica_secret = true
+  recovery_window_in_days        = 0
+
+  lifecycle {
+    ignore_changes = [name] # Prevent recreation on every apply
+  }
 }
 
 # Create Secrets Version
@@ -248,14 +259,15 @@ resource "aws_iam_role" "step_function_exec_role" {
   })
 }
 
-# IAM Policy for Step Function to invoke Lambda
-resource "aws_iam_policy" "step_function_lambda_invoke_policy" {
-  name = "step_function_lambda_invoke_policy"
+# Policy: allow Step Function to invoke Lambda
+resource "aws_iam_role_policy" "sfn_invoke_lambda" {
+  role = aws_iam_role.step_function_exec_role.id
+
   policy = jsonencode({
-    Version = "2012-10-17",
+    Version = "2012-10-17"
     Statement = [{
-      Action   = ["lambda:InvokeFunction"],
-      Effect   = "Allow",
+      Effect   = "Allow"
+      Action   = "lambda:InvokeFunction"
       Resource = aws_lambda_function.crud_lambda.arn
     }]
   })
@@ -281,7 +293,7 @@ resource "aws_api_gateway_usage_plan" "usage_plan" {
 
   api_stages {
     api_id = aws_api_gateway_rest_api.crud_api.id
-    stage  = "prod"
+    stage  = aws_api_gateway_stage.crud_stage.stage_name
   }
 
   quota_settings {
@@ -293,6 +305,8 @@ resource "aws_api_gateway_usage_plan" "usage_plan" {
     rate_limit  = 100
     burst_limit = 200
   }
+
+  depends_on = [aws_api_gateway_stage.crud_stage]
 }
 
 # Link API Key to Usage Plan
@@ -318,30 +332,81 @@ resource "aws_api_gateway_method" "post" {
   api_key_required = true
 }
 
-# Lambda integration for POST
-resource "aws_api_gateway_integration" "lambda_post" {
+# IAM role for API Gateway to invoke Step Functions
+resource "aws_iam_role" "apigw_sfn_role" {
+  name = "apigw_sfn_sync_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "apigateway.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "apigw_sfn_policy" {
+  role = aws_iam_role.apigw_sfn_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "states:StartExecution"
+      Resource = aws_sfn_state_machine.my_state_machine.arn
+    }]
+  })
+}
+
+# Step Function integration for POST
+resource "aws_api_gateway_integration" "sfn_integration" {
   rest_api_id = aws_api_gateway_rest_api.crud_api.id
   resource_id = aws_api_gateway_resource.events.id
   http_method = aws_api_gateway_method.post.http_method
 
   integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.crud_lambda.invoke_arn
+  type                    = "AWS"
+  uri                     = "arn:aws:apigateway:us-west-2:states:action/StartExecution"
+  credentials             = aws_iam_role.apigw_sfn_role.arn
+  passthrough_behavior    = "WHEN_NO_MATCH"
+  request_templates = {
+    "application/json" = <<EOF
+    {
+      "input": "$util.escapeJavaScript($input.json('$'))",
+      "stateMachineArn": "${aws_sfn_state_machine.my_state_machine.arn}"
+    }
+    EOF
+  }
 }
 
-# Lambda permission for API Gateway
-resource "aws_lambda_permission" "api_gw" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.crud_lambda.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.crud_api.execution_arn}/*/*"
+resource "aws_api_gateway_method_response" "method_response" {
+  rest_api_id = aws_api_gateway_rest_api.crud_api.id
+  resource_id = aws_api_gateway_resource.events.id
+  http_method = aws_api_gateway_method.post.http_method
+  status_code = "200"
+}
+
+resource "aws_api_gateway_integration_response" "integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.crud_api.id
+  resource_id = aws_api_gateway_resource.events.id
+  http_method = aws_api_gateway_method.post.http_method
+  status_code = aws_api_gateway_method_response.method_response.status_code
+
+  # Forward Step Function response to client
+  response_templates = {
+    "application/json" = "$input.body"
+  }
+
+  depends_on = [aws_api_gateway_integration.sfn_integration]
 }
 
 # API Gateway deployment
 resource "aws_api_gateway_deployment" "crud_deployment" {
   depends_on = [
-    aws_api_gateway_integration.lambda_post
+    aws_api_gateway_integration.sfn_integration,
   ]
 
   rest_api_id = aws_api_gateway_rest_api.crud_api.id

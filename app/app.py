@@ -21,32 +21,33 @@ def handler(event, context):
     logger.info("Lambda function started")
 
     # Log the event
-    logger.debug(f"Received event: \n{json.dumps(event, indent=2)}")
+    logger.info(f"Received event: \n{json.dumps(event, indent=2)}")
 
-    # Get the HTTP method from the event
-    http_method = event["httpMethod"]
+    # # Get the HTTP method from the event
+    # http_method = event["httpMethod"]
 
-    # Only allow POST requests
-    if http_method != "POST":
-        logger.warning(f"Method {http_method} not allowed. Only POST is supported.")
-        return {
-            "statusCode": 405,
-            "headers": {"Content-Type": "application/json", "Allow": "POST"},
-            "body": json.dumps(
-                {
-                    "error": "Method Not Allowed",
-                    "message": f"HTTP method {http_method} is not supported. Only POST requests are allowed.",
-                    "timestamp": datetime.now().isoformat(),
-                }
-            ),
-        }
+    # # Only allow POST requests
+    # if http_method != "POST":
+    #     logger.warning(f"Method {http_method} not allowed. Only POST is supported.")
+    #     return {
+    #         "statusCode": 405,
+    #         "headers": {"Content-Type": "application/json", "Allow": "POST"},
+    #         "body": json.dumps(
+    #             {
+    #                 "error": "Method Not Allowed",
+    #                 "message": f"HTTP method {http_method} is not supported. Only POST requests are allowed.",
+    #                 "timestamp": datetime.now().isoformat(),
+    #             }
+    #         ),
+    #     }
 
     # Handle POST request
     logger.info("Processing POST request")
 
     # Parse the body
     try:
-        body = json.loads(event["body"])
+        # body = json.loads(event["body"])
+        body = event
     except json.JSONDecodeError as e:
         logger.error(f"Error parsing body: {e}")
         return {
@@ -284,7 +285,7 @@ def handler(event, context):
         "body": json.dumps(
             {
                 "message": "Event received successfully",
-                "method": http_method,
+                "method": "POST",
                 "data": formatted_content,
                 "timestamp": datetime.now().isoformat(),
             }

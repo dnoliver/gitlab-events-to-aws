@@ -29,7 +29,7 @@ API_KEY=$(terraform output -raw api_key_value)
 ## Test with network request
 
 ```bash
-curl -X POST "$API_URL" -H "x-api-key: $API_KEY" -d '{"key":"value"}'
+curl -X POST "$API_URL" -H "x-api-key: $API_KEY" -H "Content-Type: application/json" -d @data/example.json
 ```
 
 ## Setup GitLab Webhook
@@ -42,7 +42,8 @@ glab api \
   projects/$PROJECT_ID/hooks \
   --method POST \
   --field url="$API_URL" \
-  --field merge_request_events=true
+  --field push_events=false \
+  --field merge_requests_events=true
 ```
 
 ## Add Header with API Key to Webhook
