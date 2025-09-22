@@ -25,28 +25,27 @@ resource "aws_ecr_repository" "lambda_ecr_repo" {
   force_delete = true
 }
 
-# Lifecyle policy for ECR repository
+# Lifecycle policy for ECR repository
 resource "aws_ecr_lifecycle_policy" "lifecycle_policy" {
   repository = aws_ecr_repository.lambda_ecr_repo.name
 
-  policy     = <<EOF
-{
-    "rules": [
-        {
-          "rulePriority": 1,
-          "description": "Expire tagged images and maintain last 2 latest images",
-          "selection": {
-              "tagStatus": "any",
-              "countType": "imageCountMoreThan",
-              "countNumber": 2
-          },
-          "action": {
-              "type": "expire"
-          }
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Expire tagged images and maintain last 2 latest images"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 2
+        }
+        action = {
+          type = "expire"
+        }
       }
     ]
-}
-EOF
+  })
+
   depends_on = [aws_ecr_repository.lambda_ecr_repo]
 }
 
@@ -55,32 +54,29 @@ resource "aws_ecr_repository_policy" "policy" {
 
   repository = aws_ecr_repository.lambda_ecr_repo.name
 
-  policy     = <<EOF
-{
-  "Version": "2008-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowCrossAccountPull",
-      "Effect": "Allow",
-      "Principal": {
-        "AWS": [
-          "*"
+  policy = jsonencode({
+    Version : "2008-10-17",
+    Statement : [
+      {
+        Sid : "AllowCrossAccountPull",
+        Effect : "Allow",
+        Principal : {
+          "AWS" : [
+            "*"
+          ]
+        },
+        Action : [
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:BatchGetImage",
+          "ecr:PutImage",
+          "ecr:InitiateLayerUpload",
+          "ecr:UploadLayerPart",
+          "ecr:CompleteLayerUpload"
         ]
-      },
-      "Action": [
-        "ecr:GetDownloadUrlForLayer",
-        "ecr:BatchCheckLayerAvailability",
-        "ecr:BatchGetImage",
-        "ecr:PutImage",
-        "ecr:InitiateLayerUpload",
-        "ecr:UploadLayerPart",
-        "ecr:CompleteLayerUpload"
-      ]
-    }
-    
-  ]
-}
-EOF
+      }
+    ]
+  })
   depends_on = [aws_ecr_repository.lambda_ecr_repo]
 
 }
