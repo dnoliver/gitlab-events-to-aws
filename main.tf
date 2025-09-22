@@ -110,7 +110,6 @@ resource "null_resource" "build_push_docker_images" {
   }
 }
 
-
 # IAM role for Lambda
 resource "aws_iam_role" "lambda_role" {
   name = "crud_lambda_role"
@@ -129,11 +128,13 @@ resource "aws_iam_role" "lambda_role" {
   })
 }
 
+# Define Secrets Manager
 resource "aws_secretsmanager_secret" "app_secrets" {
   name        = "my-application-secret"
   description = "Secret for my application"
 }
 
+# Create Secrets Version
 resource "aws_secretsmanager_secret_version" "app_secret_version" {
   secret_id = aws_secretsmanager_secret.app_secrets.id
   secret_string = jsonencode({
@@ -168,6 +169,7 @@ resource "aws_iam_role_policy_attachment" "lambda_logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+# Allow lambda to access secrets
 resource "aws_iam_role_policy_attachment" "secret_access_attachment" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.secret_access_policy.arn
@@ -212,6 +214,51 @@ resource "aws_lambda_function" "crud_lambda" {
   }
 
   depends_on = [time_sleep.wait_for_deployment]
+}
+
+# Define the Step Function State Machine
+resource "aws_sfn_state_machine" "my_state_machine" {
+  name     = "MyStepFunctionStateMachine"
+  role_arn = aws_iam_role.step_function_exec_role.arn
+  definition = jsonencode({
+    Comment = "A simple state machine"
+    StartAt = "InvokeLambda"
+    States = {
+      InvokeLambda = {
+        Type     = "Task"
+        Resource = aws_lambda_function.crud_lambda.arn
+        End      = true
+      }
+    }
+  })
+}
+
+# IAM Role for Step Function execution
+resource "aws_iam_role" "step_function_exec_role" {
+  name = "step_function_exec_role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Action = "sts:AssumeRole",
+      Effect = "Allow",
+      Principal = {
+        Service = "states.amazonaws.com"
+      }
+    }]
+  })
+}
+
+# IAM Policy for Step Function to invoke Lambda
+resource "aws_iam_policy" "step_function_lambda_invoke_policy" {
+  name = "step_function_lambda_invoke_policy"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Action   = ["lambda:InvokeFunction"],
+      Effect   = "Allow",
+      Resource = aws_lambda_function.crud_lambda.arn
+    }]
+  })
 }
 
 # API Gateway
