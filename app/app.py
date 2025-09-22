@@ -4,6 +4,7 @@ import json
 import logging
 import boto3
 import mdformat
+import gitlab
 from botocore.exceptions import ClientError
 from datetime import datetime
 from langchain_core.prompts import ChatPromptTemplate
@@ -43,6 +44,77 @@ def handler(event, context):
     # Handle POST request
     logger.info("Processing POST request")
 
+    # Parse the body
+    try:
+        body = json.loads(event["body"])
+    except json.JSONDecodeError as e:
+        logger.error(f"Error parsing body: {e}")
+        return {
+            "statusCode": 400,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(
+                {
+                    "error": "Bad Request",
+                    "message": "Invalid request body",
+                    "timestamp": datetime.now().isoformat(),
+                }
+            ),
+        }
+
+    # Circuit breaker for unsupported events
+    # The event should have the following fields and values:
+    #
+    #   "event_type": "merge_request",
+    #   "state": "opened",
+    #
+    event_type = body.get("event_type")
+    object_kind = body.get("object_kind")
+
+    # Check if this is a merge request event
+    if event_type != "merge_request" or object_kind != "merge_request":
+        logger.info(f"Unsupported event_type: {event_type}, object_kind: {object_kind}")
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(
+                {
+                    "message": "Event ignored - not a merge request event",
+                    "event_type": event_type,
+                    "object_kind": object_kind,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            ),
+        }
+
+    # Check if the merge request is opened
+    object_attributes = body.get("object_attributes", {})
+    state = object_attributes.get("state")
+
+    if state != "opened":
+        logger.info(f"Merge request state is '{state}', not 'opened'")
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(
+                {
+                    "message": "Event ignored - merge request not in opened state",
+                    "state": state,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            ),
+        }
+
+    # Get the project id and the merge request internal id
+    #
+    #       "target_project_id": <int>,
+    #       "object_attributes: {
+    #           "iid": <int>
+    #       }
+    object_attributes = body.get("object_attributes", {})
+    project_id = object_attributes.get("target_project_id")
+    merge_request_iid = object_attributes.get("object_attributes", {}).get("iid")
+
+    # Retrieve the secrets from AWS Secrets Manager
     secrets_manager = boto3.client("secretsmanager")
     secret_arn = os.environ.get("SECRETS_ARN")
 
@@ -95,10 +167,43 @@ def handler(event, context):
             ),
         }
 
+    # Create a Gitlab API interface
+    gl = gitlab.Gitlab(
+        url="https://gitlab.com",
+        private_token=secret_value["gitlab_private_token"],
+    )
+
+    # Retrieve the diff from the Merge Request
+    try:
+        merge_request_diff = gl.http_get(
+            f"/projects/{project_id}/merge_requests/{merge_request_iid}/raw_diffs",
+            params={"unidiff": True},
+        )
+
+        merge_request_diff = merge_request_diff.text
+    except Exception as e:
+        logger.error(f"Failed to retrieve merge request diff: {e}")
+        return {
+            "statusCode": 502,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(
+                {
+                    "error": "Failed to contact GitLab API",
+                    "message": "Failed to retrieve merge request diff",
+                    "timestamp": datetime.now().isoformat(),
+                }
+            ),
+        }
+
+    # Log Merge Request Diff
+    logger.info(
+        f"Merge request diff retrieved for Project {project_id} Merge Request {merge_request_id}"
+    )
+    logger.info(merge_request_diff)
+
     # Create the Anthropic chat interface
     llm = ChatAnthropic(
-        api_key=secret_value["anthropic_api_key"],
-        model="claude-3-7-sonnet-20250219"
+        api_key=secret_value["anthropic_api_key"], model="claude-3-7-sonnet-20250219"
     )
 
     # Create the summary prompt template
@@ -138,36 +243,10 @@ def handler(event, context):
         summary=summary_chain,
     )
 
-    # A sample diff from a Merge Request
-    sample_diff = (
-        "diff --git a/src/main.py b/src/main.py\n"
-        "index 1234567..abcdefg 100644\n"
-        "--- a/src/main.py\n"
-        "+++ b/src/main.py\n"
-        "@@ -1,10 +1,15 @@\n"
-        " import os\n"
-        " import sys\n"
-        "+import logging\n"
-        " \n"
-        " def main():\n"
-        '-    print("Hello World")\n'
-        "+    logger = logging.getLogger(__name__)\n"
-        "+    logger.setLevel(logging.INFO)\n"
-        "+    \n"
-        '+    print("Hello World - Updated")\n'
-        "     return 0\n"
-        " \n"
-        "+def new_function():\n"
-        '+    return "This is a new function"\n'
-        "+\n"
-        ' if __name__ == "__main__":\n'
-        "     main()\n"
-    )
-
     # Invoque the chain
     response = chain.invoke(
         {
-            "input": sample_diff,
+            "input": merge_request_diff,
         }
     )
 

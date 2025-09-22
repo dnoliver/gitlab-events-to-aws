@@ -141,8 +141,8 @@ resource "aws_secretsmanager_secret" "app_secrets" {
 resource "aws_secretsmanager_secret_version" "app_secret_version" {
   secret_id = aws_secretsmanager_secret.app_secrets.id
   secret_string = jsonencode({
-    "anthropic_api_key" = var.anthropic_api_key,
-    "db_password"       = var.db_password
+    "anthropic_api_key"    = var.anthropic_api_key,
+    "gitlab_private_token" = var.gitlab_private_token
   })
 }
 

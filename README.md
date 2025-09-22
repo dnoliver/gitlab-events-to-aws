@@ -42,7 +42,7 @@ glab api \
   projects/$PROJECT_ID/hooks \
   --method POST \
   --field url="$API_URL" \
-  --field issues_events=true
+  --field merge_request_events=true
 ```
 
 ## Add Header with API Key to Webhook
@@ -63,7 +63,7 @@ glab api \
 ```bash
 PROJECT_ID=<PROJECT ID>
 HOOK_ID=<HOOK ID>
-TRIGGER="issues_events"
+TRIGGER="merge_request_events"
 
 glab api \
   --hostname gitlab.com \

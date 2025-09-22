@@ -3,7 +3,7 @@ variable "anthropic_api_key" {
   sensitive = true
 }
 
-variable "db_password" {
+variable "gitlab_private_token" {
   type      = string
   sensitive = true
 }

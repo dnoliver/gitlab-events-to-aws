@@ -4,3 +4,4 @@ langchain-core
 langchain-anthropic
 mdformat
 mdformat-gfm
+python-gitlab
