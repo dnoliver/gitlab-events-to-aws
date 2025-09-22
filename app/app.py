@@ -21,7 +21,7 @@ def handler(event, context):
     logger.info("Lambda function started")
 
     # Log the event
-    logger.info(f"Received event: \n{json.dumps(event, indent=2)}")
+    logger.debug(f"Received event: \n{json.dumps(event, indent=2)}")
 
     # Get the HTTP method from the event
     http_method = event["httpMethod"]
@@ -112,7 +112,7 @@ def handler(event, context):
     #       }
     object_attributes = body.get("object_attributes", {})
     project_id = object_attributes.get("target_project_id")
-    merge_request_iid = object_attributes.get("object_attributes", {}).get("iid")
+    merge_request_iid = object_attributes.get("iid")
 
     # Retrieve the secrets from AWS Secrets Manager
     secrets_manager = boto3.client("secretsmanager")
@@ -173,6 +173,11 @@ def handler(event, context):
         private_token=secret_value["gitlab_private_token"],
     )
 
+    # Log the merge request state
+    logger.info(
+        f"Processing merge request '{merge_request_iid}' for project '{project_id}' in state '{state}'"
+    )
+
     # Retrieve the diff from the Merge Request
     try:
         merge_request_diff = gl.http_get(
@@ -197,7 +202,7 @@ def handler(event, context):
 
     # Log Merge Request Diff
     logger.info(
-        f"Merge request diff retrieved for Project {project_id} Merge Request {merge_request_id}"
+        f"Merge request diff retrieved for Project {project_id} Merge Request {merge_request_iid}"
     )
     logger.info(merge_request_diff)
 
@@ -267,6 +272,10 @@ def handler(event, context):
         },
         extensions={"tables"},
     )
+
+    # Log the formatted content
+    logger.info("Formatted content:")
+    logger.info(formatted_content)
 
     # Return success response for POST
     return {
