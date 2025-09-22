@@ -1,5 +1,9 @@
+import base64
+import os
 import json
 import logging
+import boto3
+from botocore.exceptions import ClientError
 from datetime import datetime
 
 # Configure logger
@@ -35,6 +39,24 @@ def handler(event, context):
     # Handle POST request
     logger.info("Processing POST request")
 
+    secrets_manager = boto3.client('secretsmanager')
+    secret_arn = os.environ.get('SECRETS_ARN')
+
+    try:
+        response = secrets_manager.get_secret_value(SecretId=secret_arn)
+        if 'SecretString' in response:
+            secret_value = json.loads(response['SecretString'])
+        else:
+            # Decode binary secret
+            secret_value = base64.b64decode(response['SecretBinary']).decode('ascii')
+        
+        logger.info(f"Retrieved secret: {secret_value}")
+    except ClientError as e:
+        logger.error(f"Error retrieving secret: {e}")
+    except json.JSONDecodeError as e:
+        logger.error(f"Error parsing secret JSON: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
     # Return success response for POST
     return {
         "statusCode": 200,

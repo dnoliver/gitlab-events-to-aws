@@ -133,10 +133,48 @@ resource "aws_iam_role" "lambda_role" {
   })
 }
 
+resource "aws_secretsmanager_secret" "app_secrets" {
+  name        = "my-application-secret"
+  description = "Secret for my application"
+}
+
+resource "aws_secretsmanager_secret_version" "app_secret_version" {
+  secret_id = aws_secretsmanager_secret.app_secrets.id
+  secret_string = jsonencode({
+    "api_key"     = var.api_key,
+    "db_password" = var.db_password
+  })
+}
+
+# AIM role for secret access
+resource "aws_iam_policy" "secret_access_policy" {
+  name        = "lambda-secrets-manager-access"
+  description = "Allows Lambda to read secrets from Secrets Manager"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ],
+        Resource = aws_secretsmanager_secret.app_secrets.arn
+      }
+    ]
+  })
+}
+
 # IAM policy for CloudWatch Logs
 resource "aws_iam_role_policy_attachment" "lambda_logs" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "secret_access_attachment" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.secret_access_policy.arn
 }
 
 # Introduce a delay (e.g., 60 seconds)
@@ -171,8 +209,9 @@ resource "aws_lambda_function" "crud_lambda" {
   # Environment variables (optional)
   environment {
     variables = {
-      LOG_LEVEL = "INFO"
-      PORT      = 3000
+      LOG_LEVEL   = "INFO"
+      PORT        = 3000
+      SECRETS_ARN = aws_secretsmanager_secret.app_secrets.arn
     }
   }
 
