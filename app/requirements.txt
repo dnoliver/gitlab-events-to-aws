@@ -1,2 +1,6 @@
 botocore
 boto3
+langchain-core
+langchain-anthropic
+mdformat
+mdformat-gfm
