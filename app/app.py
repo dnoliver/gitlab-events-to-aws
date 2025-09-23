@@ -23,44 +23,8 @@ def handler(event, context):
     # Log the event
     logger.info(f"Received event: \n{json.dumps(event, indent=2)}")
 
-    # # Get the HTTP method from the event
-    # http_method = event["httpMethod"]
-
-    # # Only allow POST requests
-    # if http_method != "POST":
-    #     logger.warning(f"Method {http_method} not allowed. Only POST is supported.")
-    #     return {
-    #         "statusCode": 405,
-    #         "headers": {"Content-Type": "application/json", "Allow": "POST"},
-    #         "body": json.dumps(
-    #             {
-    #                 "error": "Method Not Allowed",
-    #                 "message": f"HTTP method {http_method} is not supported. Only POST requests are allowed.",
-    #                 "timestamp": datetime.now().isoformat(),
-    #             }
-    #         ),
-    #     }
-
     # Handle POST request
     logger.info("Processing POST request")
-
-    # Parse the body
-    try:
-        # body = json.loads(event["body"])
-        body = event
-    except json.JSONDecodeError as e:
-        logger.error(f"Error parsing body: {e}")
-        return {
-            "statusCode": 400,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps(
-                {
-                    "error": "Bad Request",
-                    "message": "Invalid request body",
-                    "timestamp": datetime.now().isoformat(),
-                }
-            ),
-        }
 
     # Circuit breaker for unsupported events
     # The event should have the following fields and values:
@@ -68,8 +32,8 @@ def handler(event, context):
     #   "event_type": "merge_request",
     #   "state": "opened",
     #
-    event_type = body.get("event_type")
-    object_kind = body.get("object_kind")
+    event_type = event.get("event_type")
+    object_kind = event.get("object_kind")
 
     # Check if this is a merge request event
     if event_type != "merge_request" or object_kind != "merge_request":
@@ -88,7 +52,7 @@ def handler(event, context):
         }
 
     # Check if the merge request is opened
-    object_attributes = body.get("object_attributes", {})
+    object_attributes = event.get("object_attributes", {})
     state = object_attributes.get("state")
 
     if state != "opened":
@@ -111,7 +75,7 @@ def handler(event, context):
     #       "object_attributes: {
     #           "iid": <int>
     #       }
-    object_attributes = body.get("object_attributes", {})
+    object_attributes = event.get("object_attributes", {})
     project_id = object_attributes.get("target_project_id")
     merge_request_iid = object_attributes.get("iid")
 
