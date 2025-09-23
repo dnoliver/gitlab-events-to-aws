@@ -19,7 +19,7 @@ api_key_value = <sensitive>
 api_url = "https://<some>.execute-api.us-west-2.amazonaws.com/<stage>/<path>"
 ```
 
-## Get API Key
+## Get API URL and Key
 
 ```bash
 API_URL=$(terraform output -raw api_url)
@@ -64,7 +64,7 @@ glab api \
 ```bash
 PROJECT_ID=<PROJECT ID>
 HOOK_ID=<HOOK ID>
-TRIGGER="merge_request_events"
+TRIGGER="merge_requests_events"
 
 glab api \
   --hostname gitlab.com \

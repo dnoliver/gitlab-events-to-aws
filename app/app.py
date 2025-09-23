@@ -21,7 +21,7 @@ def handler(event, context):
     logger.info("Lambda function started")
 
     # Log the event
-    logger.info(f"Received event: \n{json.dumps(event, indent=2)}")
+    logger.debug(f"Received event: \n{json.dumps(event, indent=2)}")
 
     # Handle POST request
     logger.info("Processing POST request")
